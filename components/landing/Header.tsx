@@ -1,15 +1,18 @@
 "use client";
 
 import React, { useState } from "react";
-import { UserRound, Plus, X } from "lucide-react";
+import { UserRound, LogOut, Plus, X } from "lucide-react";
 import BrandMark from "../brand/BrandMark";
+import { UserProfile } from "./AuthModal";
 
 interface HeaderProps {
+  user: UserProfile | null;
   onOpenLogin: () => void;
   onOpenSignUp: () => void;
+  onLogout: () => void;
 }
 
-export default function Header({ onOpenLogin, onOpenSignUp }: HeaderProps) {
+export default function Header({ user, onOpenLogin, onOpenSignUp, onLogout }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -29,12 +32,29 @@ export default function Header({ onOpenLogin, onOpenSignUp }: HeaderProps) {
             Browse campus
           </a>
           <div className="auth-header-buttons">
-            <button className="nav-login" onClick={() => { setMenuOpen(false); onOpenLogin(); }}>
-              <UserRound size={13} /> Login
-            </button>
-            <button className="button button--citron signup-header-btn" onClick={() => { setMenuOpen(false); onOpenSignUp(); }}>
-              Sign Up
-            </button>
+            {user ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)" }}>
+                  Hi, {user.name.split(" ")[0]} ({user.branch})
+                </span>
+                <button 
+                  className="nav-login"
+                  onClick={() => { setMenuOpen(false); onLogout(); }}
+                  style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
+                >
+                  <LogOut size={14} /> Logout
+                </button>
+              </div>
+            ) : (
+              <>
+                <button className="nav-login" onClick={() => { setMenuOpen(false); onOpenLogin(); }}>
+                  <UserRound size={13} /> Login
+                </button>
+                <button className="button button--citron signup-header-btn" onClick={() => { setMenuOpen(false); onOpenSignUp(); }}>
+                  Sign Up
+                </button>
+              </>
+            )}
           </div>
         </div>
         <button

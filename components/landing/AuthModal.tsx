@@ -1,12 +1,22 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ArrowUpRight, X, Eye, EyeOff, User, Mail, Lock, BookOpen, GraduationCap, Calendar } from "lucide-react";
+import { ArrowUpRight, X, Eye, EyeOff, User, Mail, Lock, BookOpen, GraduationCap, Calendar, AlertCircle } from "lucide-react";
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  domain: string;
+  branch: string;
+  year: string;
+}
 
 interface AuthModalProps {
   isOpen: boolean;
   initialMode: "login" | "signup";
   onClose: () => void;
+  onAuthSuccess?: (user: UserProfile) => void;
 }
 
 const domainData: Record<string, string[]> = {
@@ -69,7 +79,7 @@ const domainData: Record<string, string[]> = {
   ]
 };
 
-export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalProps) {
+export default function AuthModal({ isOpen, initialMode, onClose, onAuthSuccess }: AuthModalProps) {
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
   
   // Form fields
@@ -93,25 +103,19 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
     domain?: string;
     branch?: string;
     year?: string;
-    general?: string 
+    general?: string;
+    isAlreadyRegistered?: boolean;
+    needsRegistration?: boolean;
   }>({});
   
   // Success state
   const [successMsg, setSuccessMsg] = useState("");
-
-  // Loading state
   const [loading, setLoading] = useState(false);
 
   // Sync mode with initialMode when modal opens
   useEffect(() => {
     if (isOpen) {
       setMode(initialMode);
-      setName("");
-      setEmail("");
-      setPassword("");
-      setDomain("");
-      setBranch("");
-      setYear("");
       setErrors({});
       setSuccessMsg("");
       setShowPassword(false);
@@ -123,7 +127,7 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
   useEffect(() => {
     if (domain && domainData[domain]) {
       setAvailableBranches(domainData[domain]);
-      setBranch(""); // Reset branch selection
+      setBranch("");
     } else {
       setAvailableBranches([]);
       setBranch("");
@@ -133,7 +137,7 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
   // Update years dynamically based on Domain duration
   useEffect(() => {
     if (domain) {
-      let duration = 3; // Default 3 years (BCA, BBA, B.Sc Hons, Diploma)
+      let duration = 3;
       if (["B.Tech", "B.Pharm"].includes(domain)) {
         duration = 4;
       } else if (["M.Tech", "MCA", "MBA", "M.Sc"].includes(domain)) {
@@ -162,7 +166,7 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
     
     if (mode === "signup") {
       if (!name.trim()) {
-        tempErrors.name = "Name is required";
+        tempErrors.name = "Full name is required";
       }
       if (!domain) {
         tempErrors.domain = "Program/Domain is required";
@@ -171,16 +175,16 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
         tempErrors.branch = "Branch is required";
       }
       if (!year) {
-        tempErrors.year = "Year is required";
+        tempErrors.year = "Academic year is required";
       }
     }
 
-    if (!email) {
-      tempErrors.email = "Email is required";
+    if (!email.trim()) {
+      tempErrors.email = "GLA Email address is required";
     } else {
       const emailPattern = /^[a-zA-Z0-9._%+-]+@gla\.ac\.in$/;
-      if (!emailPattern.test(email)) {
-        tempErrors.email = "Invalid domain. Must end with @gla.ac.in";
+      if (!emailPattern.test(email.toLowerCase().trim())) {
+        tempErrors.email = "Must be a valid GLA email ending with @gla.ac.in";
       }
     }
 
@@ -188,6 +192,8 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
       tempErrors.password = "Password is required";
     } else if (password.length < 6) {
       tempErrors.password = "Password must be at least 6 characters";
+    } else if (mode === "signup" && !/^(?=.*[A-Za-z])(?=.*\d)/.test(password)) {
+      tempErrors.password = "Password must contain both letters and numbers";
     }
 
     setErrors(tempErrors);
@@ -216,23 +222,42 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
       const data = await res.json();
 
       if (!res.ok) {
-        setErrors({ general: data.error || "An error occurred. Please try again." });
+        setErrors({
+          general: data.error || "Authentication failed. Please try again.",
+          isAlreadyRegistered: data.isAlreadyRegistered || false,
+          needsRegistration: data.needsRegistration || false,
+        });
       } else {
         setSuccessMsg(
           mode === "signup"
-            ? `Account created successfully! Welcome to Gla~Nexus, ${data.user?.name || name}.`
+            ? `Account registered successfully! Welcome to Gla~Nexus, ${data.user?.name || name}.`
             : `Logged in successfully! Welcome back, ${data.user?.name || "Student"}.`
         );
+        
+        if (data.user && onAuthSuccess) {
+          onAuthSuccess(data.user);
+        }
+
         setTimeout(() => {
           setSuccessMsg("");
           onClose();
-        }, 2000);
+        }, 1500);
       }
     } catch {
       setErrors({ general: "Network error or database server unreachable. Check connection settings." });
     } finally {
       setLoading(false);
     }
+  };
+
+  const switchToLogin = () => {
+    setMode("login");
+    setErrors({});
+  };
+
+  const switchToSignUp = () => {
+    setMode("signup");
+    setErrors({});
   };
 
   return (
@@ -247,14 +272,14 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
           <button 
             type="button" 
             className={`auth-tab-btn ${mode === "login" ? "active" : ""}`}
-            onClick={() => { setMode("login"); setErrors({}); }}
+            onClick={switchToLogin}
           >
             Login
           </button>
           <button 
             type="button" 
             className={`auth-tab-btn ${mode === "signup" ? "active" : ""}`}
-            onClick={() => { setMode("signup"); setErrors({}); }}
+            onClick={switchToSignUp}
           >
             Sign Up
           </button>
@@ -266,8 +291,73 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
         <p>
           {mode === "login" 
             ? "Sign in to buy and sell second-hand essentials." 
-            : "Register with your GLA university email to get started."}
+            : "Register with your verified GLA university email (@gla.ac.in)."}
         </p>
+
+        {/* Error Banner */}
+        {errors.general && (
+          <div className="auth-error-box" style={{
+            background: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.3)",
+            borderRadius: "8px",
+            padding: "12px 16px",
+            marginBottom: "16px",
+            color: "#ef4444",
+            fontSize: "14px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <AlertCircle size={18} style={{ flexShrink: 0 }} />
+              <span>{errors.general}</span>
+            </div>
+            
+            {/* Quick Action Button for duplicate email conflict */}
+            {errors.isAlreadyRegistered && (
+              <button
+                type="button"
+                onClick={switchToLogin}
+                style={{
+                  alignSelf: "flex-start",
+                  background: "#ef4444",
+                  color: "#fff",
+                  border: "none",
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  marginTop: "4px"
+                }}
+              >
+                Switch to Login Mode →
+              </button>
+            )}
+
+            {/* Quick Action Button if login email not registered */}
+            {errors.needsRegistration && (
+              <button
+                type="button"
+                onClick={switchToSignUp}
+                style={{
+                  alignSelf: "flex-start",
+                  background: "#3b82f6",
+                  color: "#fff",
+                  border: "none",
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  marginTop: "4px"
+                }}
+              >
+                Switch to Sign Up Mode →
+              </button>
+            )}
+          </div>
+        )}
 
         {successMsg ? (
           <div className="auth-success-box">
@@ -313,13 +403,13 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
                   </div>
 
                   <div className="form-group">
-                    <label htmlFor="password-input">Password</label>
+                    <label htmlFor="password-input">Password (Min 6 chars, letters & numbers)</label>
                     <div className="input-icon-wrapper">
                       <Lock className="input-icon" size={16} />
                       <input
                         id="password-input"
                         type={showPassword ? "text" : "password"}
-                        placeholder="At least 6 characters"
+                        placeholder="e.g. Gla1234"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
@@ -400,7 +490,7 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
                 </div>
               </div>
             ) : (
-              // Login Mode - Single Column Layout
+              // Login Mode
               <div className="login-form-wrapper">
                 <div className="form-group">
                   <label htmlFor="email-input">GLA University Email</label>
@@ -444,14 +534,8 @@ export default function AuthModal({ isOpen, initialMode, onClose }: AuthModalPro
               </div>
             )}
 
-            {errors.general && (
-              <div className="error-text" style={{ fontSize: "12px", marginTop: "12px", display: "block" }}>
-                ⚠️ {errors.general}
-              </div>
-            )}
-
             <button type="submit" className="button button--ink modal-submit" disabled={loading}>
-              {loading ? "Connecting..." : mode === "login" ? "Login" : "Register"} <ArrowUpRight size={17} />
+              {loading ? "Processing..." : mode === "login" ? "Login" : "Register"} <ArrowUpRight size={17} />
             </button>
           </form>
         )}

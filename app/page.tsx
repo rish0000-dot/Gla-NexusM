@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Header from "@/components/landing/Header";
 import HeroSection from "@/components/landing/HeroSection";
 import Ticker from "@/components/landing/Ticker";
@@ -10,11 +10,28 @@ import CampusShelfSection from "@/components/landing/CampusShelfSection";
 import StepsSection from "@/components/landing/StepsSection";
 import FinalCtaSection from "@/components/landing/FinalCtaSection";
 import Footer from "@/components/landing/Footer";
-import AuthModal from "@/components/landing/AuthModal";
+import AuthModal, { UserProfile } from "@/components/landing/AuthModal";
 
 export default function Home() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"login" | "signup">("login");
+  const [user, setUser] = useState<UserProfile | null>(null);
+
+  // Check existing session on load
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        if (res.ok && data.authenticated && data.user) {
+          setUser(data.user);
+        }
+      } catch (err) {
+        console.error("Session check failed:", err);
+      }
+    }
+    checkSession();
+  }, []);
 
   const handleOpenLogin = () => {
     setModalMode("login");
@@ -28,12 +45,26 @@ export default function Home() {
 
   const handleCloseModal = () => setModalOpen(false);
 
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      setUser(null);
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
+  };
+
   return (
     <main className="site-shell">
       <div className="grain" aria-hidden="true" />
       
       {/* Header Navigation */}
-      <Header onOpenLogin={handleOpenLogin} onOpenSignUp={handleOpenSignUp} />
+      <Header 
+        user={user}
+        onOpenLogin={handleOpenLogin} 
+        onOpenSignUp={handleOpenSignUp} 
+        onLogout={handleLogout}
+      />
 
       {/* Hero Section */}
       <HeroSection />
@@ -60,7 +91,12 @@ export default function Home() {
       <Footer />
 
       {/* Sign-in / Access Modal */}
-      <AuthModal isOpen={modalOpen} initialMode={modalMode} onClose={handleCloseModal} />
+      <AuthModal 
+        isOpen={modalOpen} 
+        initialMode={modalMode} 
+        onClose={handleCloseModal}
+        onAuthSuccess={(loggedUser) => setUser(loggedUser)}
+      />
     </main>
   );
 }
